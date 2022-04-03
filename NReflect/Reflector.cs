@@ -17,7 +17,9 @@
 // along with NReflect. If not, see <http://www.gnu.org/licenses/>.
 
 using System;
+using System.IO;
 using System.Reflection;
+using System.Text;
 using NReflect.Filter;
 
 namespace NReflect
@@ -107,7 +109,32 @@ namespace NReflect
                                               Filter = Filter ?? new ReflectAllFilter()
                                             };
 
-      return reflectionWorker.Reflect(fileName);
+      NRAssembly a = null;
+      try
+      {
+        a = reflectionWorker.Reflect(fileName);
+      }
+      catch (ReflectionTypeLoadException ex)
+      {
+        StringBuilder sb = new StringBuilder();
+        foreach (Exception exSub in ex.LoaderExceptions)
+        {
+          sb.AppendLine(exSub.Message);
+          FileNotFoundException exFileNotFound = exSub as FileNotFoundException;
+          if (exFileNotFound != null)
+          {                
+            if(!string.IsNullOrEmpty(exFileNotFound.FusionLog))
+            {
+              sb.AppendLine("Fusion Log:");
+              sb.AppendLine(exFileNotFound.FusionLog);
+            }
+          }
+          sb.AppendLine();
+        }
+        string errorMessage = sb.ToString();
+        //Display or log the error based on your application.
+      }
+      return a;
     }
 
     /// <summary>
