@@ -79,7 +79,7 @@ namespace NReflect.Studio.Models
     /// </summary>
     public string Path
     {
-      get { return Parent != null ? System.IO.Path.Combine(Parent.Path, Parent.Name) : Name; }
+      get { return Parent != null ? System.IO.Path.Combine(Parent.Path, Parent.Name) : string.Empty; }
     }
 
     /// <summary>
