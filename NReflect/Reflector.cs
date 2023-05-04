@@ -52,7 +52,6 @@ namespace NReflect
 
         #region === Methods
 
-        #if !UNITY_EDITOR
         /// <summary>
         /// Reflects the types of an assembly.
         /// </summary>
@@ -97,7 +96,6 @@ namespace NReflect
 
             return Reflect(fileName);
         }
-        #endif
 
         /// <summary>
         /// Reflects the types of an assembly.
@@ -111,19 +109,18 @@ namespace NReflect
                 Filter = Filter ?? new ReflectAllFilter()
             };
 
-            NRAssembly a = null;
+            NRAssembly nrAssembly = null;
             try
             {
-                a = reflectionWorker.Reflect(fileName);
+                nrAssembly = reflectionWorker.Reflect(fileName);
             }
             catch (ReflectionTypeLoadException ex)
             {
-                StringBuilder sb = new StringBuilder();
-                foreach (Exception exSub in ex.LoaderExceptions)
+                var sb = new StringBuilder();
+                foreach (var exSub in ex.LoaderExceptions)
                 {
                     sb.AppendLine(exSub.Message);
-                    FileNotFoundException exFileNotFound = exSub as FileNotFoundException;
-                    if (exFileNotFound != null)
+                    if (exSub is FileNotFoundException exFileNotFound)
                     {
                         if (!string.IsNullOrEmpty(exFileNotFound.FusionLog))
                         {
@@ -135,11 +132,11 @@ namespace NReflect
                     sb.AppendLine();
                 }
 
-                string errorMessage = sb.ToString();
+                var errorMessage = sb.ToString();
                 //Display or log the error based on your application.
             }
 
-            return a;
+            return nrAssembly;
         }
 
         /// <summary>
