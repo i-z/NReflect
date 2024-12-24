@@ -56,45 +56,29 @@ namespace NReflect
         /// Reflects the types of an assembly.
         /// </summary>
         /// <param name="fileName">The file name of the assembly to reflect.</param>
-        /// <param name="useNewAppDomain">If set to true, a new app domain will be used for
-        ///                               the reflection.</param>
+        /// <param name="filter">The type filter used to determine which types to reflect.</param>
         /// <returns>The result of the reflection.</returns>
-        public NRAssembly Reflect(string fileName, bool useNewAppDomain = true)
+        public NRAssembly Reflect(string fileName, ref IFilter filter)
         {
-            IFilter filter = null;
-            return Reflect(fileName, ref filter, useNewAppDomain);
+            Filter = filter;
+            return Reflect(fileName);
         }
 
         /// <summary>
-        /// Reflects the types of an assembly.
+        /// Reflects the types of the provided assembly.
         /// </summary>
-        /// <param name="fileName">The file name of the assembly to reflect.</param>
+        /// <param name="assembly">The assembly to reflect.</param>
         /// <param name="filter">The type filter used to determine which types to reflect.</param>
-        /// <param name="useNewAppDomain">If set to true, a new app domain will be used for
-        ///                               the reflection.</param>
         /// <returns>The result of the reflection.</returns>
-        public NRAssembly Reflect(string fileName, ref IFilter filter, bool useNewAppDomain = true)
+        public NRAssembly Reflect(Assembly assembly, ref IFilter filter)
         {
-            if (useNewAppDomain)
+            Filter = filter;
+            ReflectionWorker reflectionWorker = new ReflectionWorker
             {
-                // Create the new AppDomain
-                AppDomain newAppDomain = AppDomain.CreateDomain("NReflect-AppDomain", null, null);
-                // Create a new instance of Reflector at the new AppDomain
-                String dllName = Assembly.GetAssembly(typeof(Reflector)).FullName;
-                Reflector reflector = (Reflector)newAppDomain.CreateInstanceAndUnwrap(dllName, "NReflect.Reflector");
-                // Move the filter from this to the new instance
-                reflector.Filter = filter;
+                Filter = Filter ?? new ReflectAllFilter()
+            };
 
-                NRAssembly nrAssembly = reflector.Reflect(fileName);
-                // Move the filter back from the new to this instance
-                filter = reflector.Filter;
-
-                AppDomain.Unload(newAppDomain);
-
-                return nrAssembly;
-            }
-
-            return Reflect(fileName);
+            return reflectionWorker.Reflect(assembly);
         }
 
         /// <summary>
@@ -137,33 +121,6 @@ namespace NReflect
             }
 
             return nrAssembly;
-        }
-
-        /// <summary>
-        /// Reflects the types of the provided assembly.
-        /// </summary>
-        /// <param name="assembly">The assembly to reflect.</param>
-        /// <returns>The result of the reflection.</returns>
-        public NRAssembly Reflect(Assembly assembly)
-        {
-            IFilter filter = null;
-            return Reflect(assembly, ref filter);
-        }
-
-        /// <summary>
-        /// Reflects the types of the provided assembly.
-        /// </summary>
-        /// <param name="assembly">The assembly to reflect.</param>
-        /// <param name="filter">The type filter used to determine which types to reflect.</param>
-        /// <returns>The result of the reflection.</returns>
-        public NRAssembly Reflect(Assembly assembly, ref IFilter filter)
-        {
-            ReflectionWorker reflectionWorker = new ReflectionWorker
-            {
-                Filter = Filter ?? new ReflectAllFilter()
-            };
-
-            return reflectionWorker.Reflect(assembly);
         }
 
         #endregion
