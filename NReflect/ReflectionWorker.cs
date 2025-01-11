@@ -152,8 +152,30 @@ namespace NReflect
         public NRAssembly Reflect(string fileName)
         {
             path = Path.GetDirectoryName(fileName);
-            AppDomain.CurrentDomain.ReflectionOnlyAssemblyResolve += CurrentDomain_ReflectionOnlyAssemblyResolve;
-            Assembly assembly = Assembly.ReflectionOnlyLoadFrom(fileName);
+            //AppDomain.CurrentDomain.ReflectionOnlyAssemblyResolve += CurrentDomain_ReflectionOnlyAssemblyResolve;
+            //Assembly assembly = Assembly.ReflectionOnlyLoadFrom(fileName);
+
+            string assemblyDirectory = Path.GetDirectoryName(fileName);
+
+            string[] runtimeAssemblies = Directory.GetFiles(RuntimeEnvironment.GetRuntimeDirectory(), "*.dll");
+            var paths = new List<string>(runtimeAssemblies);
+            paths.AddRange(Directory.GetFiles(assemblyDirectory, "*.dll"));
+
+            // Create a MetadataLoadContext
+            var resolver = new PathAssemblyResolver(paths);
+            using var metadataContext = new MetadataLoadContext(resolver);
+
+            // Load the assembly in MetadataLoadContext
+            Assembly assembly;
+            try
+            {
+                assembly = metadataContext.LoadFromAssemblyPath(fileName);
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException($"Failed to load assembly '{fileName}'.", ex);
+            }
+
 
             NRAssembly nrAssembly = Reflect(assembly);
             nrAssembly.Source = fileName;
