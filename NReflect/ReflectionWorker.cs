@@ -192,8 +192,16 @@ namespace NReflect
             };
 
             ReflectAttributes(CustomAttributeData.GetCustomAttributes(assembly), nrAssembly);
-            ReflectTypes(assembly.GetTypes(), nrAssembly);
-            ReflectModules(assembly.GetModules(), nrAssembly);
+
+            try // Get the assembly information
+            {
+                ReflectTypes(assembly.GetTypes(), nrAssembly);
+                ReflectModules(assembly.GetModules(), nrAssembly);
+            }
+            catch (Exception ex)
+            {
+                _errors.Add($"Failed to reflect assembly '{assembly.FullName}'. {ex.Message}");
+            }
 
             return nrAssembly;
         }
@@ -477,7 +485,17 @@ namespace NReflect
                 {
                     UnderlyingType = type.GetEnumUnderlyingType().FullName
                 };
-                FieldInfo[] fields = type.GetFields(STANDARD_BINDING_FLAGS);
+                FieldInfo[] fields;
+                try
+                {
+                    fields = type.GetFields(STANDARD_BINDING_FLAGS);
+                }
+                catch (Exception ex)
+                {
+                    _errors.Add($"Failed to reflect enum '{type.Name}'. {ex.Message}");
+                    return;
+                }
+
                 foreach (FieldInfo field in fields)
                 {
                     //Sort this special field out
@@ -539,24 +557,45 @@ namespace NReflect
             if (type.BaseType != null)
             {
                 // Get implemented interfaces of base class
-                interfacesOfBase.AddRange(type.BaseType.GetInterfaces());
-            }
-
-            foreach (Type implementedInterface in type.GetInterfaces())
-            {
-                // Get implemented interfaces of implemented interfaces
-                foreach (Type baseInterface in implementedInterface.GetInterfaces())
+                try
                 {
-                    if (!interfacesOfBase.Contains(baseInterface))
-                    {
-                        interfacesOfBase.Add(baseInterface);
-                    }
+                    interfacesOfBase.AddRange(type.BaseType.GetInterfaces());
+                }
+                catch (Exception ex)
+                {
+                    _errors.Add($"Failed to reflect base type '{type.BaseType.Name}'. {ex.Message}");
                 }
             }
 
-            foreach (Type implementedInterface in type.GetInterfaces().Where(i => !interfacesOfBase.Contains(i)))
+            try
             {
-                nrCompositeType.ImplementedInterfaces.Add(GetTypeUsage(implementedInterface, type));
+                foreach (Type implementedInterface in type.GetInterfaces())
+                {
+                    // Get implemented interfaces of implemented interfaces
+                    foreach (Type baseInterface in implementedInterface.GetInterfaces())
+                    {
+                        if (!interfacesOfBase.Contains(baseInterface))
+                        {
+                            interfacesOfBase.Add(baseInterface);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _errors.Add($"Failed to reflect interfaces of type '{type.Name}'. {ex.Message}");
+            }
+
+            try // Get implemented interfaces of type
+            {
+                foreach (Type implementedInterface in type.GetInterfaces().Where(i => !interfacesOfBase.Contains(i)))
+                {
+                    nrCompositeType.ImplementedInterfaces.Add(GetTypeUsage(implementedInterface, type));
+                }
+            }
+            catch (Exception ex)
+            {
+                _errors.Add($"Failed to reflect interfaces of type '{type.Name}'. {ex.Message}");
             }
         }
 
@@ -627,7 +666,17 @@ namespace NReflect
         /// <param name="nrCompositeType">Reflected events are added to this FieldContainer.</param>
         private void ReflectEvents(Type type, NRCompositeType nrCompositeType)
         {
-            EventInfo[] eventInfos = type.GetEvents(STANDARD_BINDING_FLAGS);
+            EventInfo[] eventInfos;
+            try
+            {
+                eventInfos = type.GetEvents(STANDARD_BINDING_FLAGS);
+            }
+            catch (Exception ex)
+            {
+                _errors.Add($"Failed to reflect events of type '{type.Name}'. {ex.Message}");
+                return;
+            }
+
             foreach (EventInfo eventInfo in eventInfos)
             {
                 //Don't reflect derived events.
@@ -671,7 +720,17 @@ namespace NReflect
         {
             List<string> events = GetEventNames(type);
 
-            FieldInfo[] fieldInfos = type.GetFields(STANDARD_BINDING_FLAGS);
+            FieldInfo[] fieldInfos;
+            try
+            {
+                fieldInfos = type.GetFields(STANDARD_BINDING_FLAGS);
+            }
+            catch (Exception ex)
+            {
+                _errors.Add($"Failed to reflect fields of type '{type.Name}'. {ex.Message}");
+                return;
+            }
+
             foreach (FieldInfo fieldInfo in fieldInfos)
             {
                 //Don't reflect fields belonging to events
@@ -736,7 +795,17 @@ namespace NReflect
         /// <param name="nrCompositeType">The destination of the reflection.</param>
         private void ReflectMethods(Type type, NRCompositeType nrCompositeType)
         {
-            MethodInfo[] methods = type.GetMethods(STANDARD_BINDING_FLAGS);
+            MethodInfo[] methods;
+            try
+            {
+                methods = type.GetMethods(STANDARD_BINDING_FLAGS);
+            }
+            catch (Exception ex)
+            {
+                _errors.Add($"Failed to reflect methods of type '{type.Name}'. {ex.Message}");
+                return;
+            }
+
             foreach (MethodInfo methodInfo in methods)
             {
                 //Don't display derived Methods.
@@ -785,7 +854,17 @@ namespace NReflect
         /// <param name="nrCompositeType">The destination of the reflection.</param>
         private void ReflectProperties(Type type, NRCompositeType nrCompositeType)
         {
-            PropertyInfo[] properties = type.GetProperties(STANDARD_BINDING_FLAGS);
+            PropertyInfo[] properties;
+            try
+            {
+                properties = type.GetProperties(STANDARD_BINDING_FLAGS);
+            }
+            catch (Exception ex)
+            {
+                _errors.Add($"Failed to reflect properties of type '{type.Name}'. {ex.Message}");
+                return;
+            }
+
             foreach (PropertyInfo propertyInfo in properties)
             {
                 //Don't display derived Methods.
@@ -833,6 +912,16 @@ namespace NReflect
                 {
                     ChangeOperationModifierIfOverwritten(type, propertyInfo.CanRead ? getMethod : setMethod,
                         nrProperty);
+                }
+
+                try // Get the property information
+                {
+                    _ = propertyInfo.PropertyType.FullName;
+                }
+                catch (Exception ex)
+                {
+                    _errors.Add($"Failed to reflect property '{propertyInfo.Name}'. {ex.Message}");
+                    continue;
                 }
 
                 nrProperty.Type = GetTypeUsage(propertyInfo.PropertyType, propertyInfo);
@@ -935,6 +1024,16 @@ namespace NReflect
         /// <param name="fieldContainer">The reflected field is added to this <see cref="IFieldContainer"/>.</param>
         private void ReflectField(FieldInfo fieldInfo, IFieldContainer fieldContainer)
         {
+            try // Get the field information
+            {
+                _ = fieldInfo.FieldType.FullName;
+            }
+            catch (Exception ex)
+            {
+                _errors.Add($"Failed to reflect field '{fieldInfo.Name}'. {ex.Message}");
+                return;
+            }
+
             NRField nrField = new NRField
             {
                 Name = fieldInfo.Name,
@@ -1090,7 +1189,7 @@ namespace NReflect
         /// </summary>
         /// <param name="memberInfo">The member info to test</param>
         /// <returns>True, if <paramref name="memberInfo"/> has the CompilerGeneratedAttribute.</returns>
-        private static bool HasMemberCompilerGeneratedAttribute(MemberInfo memberInfo)
+        private bool HasMemberCompilerGeneratedAttribute(MemberInfo memberInfo)
         {
             if (memberInfo == null)
             {
@@ -1111,17 +1210,25 @@ namespace NReflect
         /// <param name="memberInfo">The MemberInfo</param>
         /// <param name="type">The type of the attribute.</param>
         /// <returns>True if the memeber contains the attribute, false otherwise.</returns>
-        private static bool HasMemberAttribute(MemberInfo memberInfo, Type type)
+        private bool HasMemberAttribute(MemberInfo memberInfo, Type type)
         {
             if (memberInfo == null)
             {
                 return false;
             }
 
-            IList<CustomAttributeData> attributeDatas = CustomAttributeData.GetCustomAttributes(memberInfo);
-            return attributeDatas.Any(attributeData =>
-                attributeData.Constructor.DeclaringType != null &&
-                attributeData.Constructor.DeclaringType.FullName == type.FullName);
+            try
+            {
+                IList<CustomAttributeData> attributeDatas = CustomAttributeData.GetCustomAttributes(memberInfo);
+                return attributeDatas.Any(attributeData =>
+                    attributeData.Constructor.DeclaringType != null &&
+                    attributeData.Constructor.DeclaringType.FullName == type.FullName);
+            }
+            catch (Exception ex)
+            {
+                _errors.Add($"Failed to reflect attributes of member '{memberInfo.Name}'. {ex.Message}");
+                return false;
+            }
         }
 
         /// <summary>
@@ -1148,10 +1255,20 @@ namespace NReflect
         /// <param name="type">The type which could define <paramref name="method"/> already.</param>
         /// <param name="method">The method wich should be checked</param>
         /// <returns>True, if <paramref name="method"/> is defined in <paramref name="type"/> or above.</returns>
-        private static bool IsMethodOverwritten(Type type, MethodBase method)
+        private bool IsMethodOverwritten(Type type, MethodBase method)
         {
             if (type == null)
             {
+                return false;
+            }
+
+            try // Get the method information
+            {
+                _ = method.GetParameters();
+            }
+            catch (Exception ex)
+            {
+                _errors.Add($"Failed to reflect method '{method.Name}'. {ex.Message}");
                 return false;
             }
 
@@ -1205,7 +1322,7 @@ namespace NReflect
         /// <param name="type">The type which will be represented by the resulting <see cref="NRTypeUsage"/>.</param>
         /// <param name="declaringType">A <see cref="Type"/> which defines the type which is used.</param>
         /// <returns>The initialized <see cref="NRTypeUsage"/>.</returns>
-        private static NRTypeUsage GetTypeUsage(Type type, Type declaringType)
+        private NRTypeUsage GetTypeUsage(Type type, Type declaringType)
         {
             return GetTypeUsage(type, CustomAttributeData.GetCustomAttributes(declaringType), declaringType);
         }
@@ -1217,7 +1334,7 @@ namespace NReflect
         /// <param name="type">The type which will be represented by the resulting <see cref="NRTypeUsage"/>.</param>
         /// <param name="memberInfo">A <see cref="MemberInfo"/> which is used to determine if the type is dynamic.</param>
         /// <returns>The initialized <see cref="NRTypeUsage"/>.</returns>
-        private static NRTypeUsage GetTypeUsage(Type type, MemberInfo memberInfo)
+        private NRTypeUsage GetTypeUsage(Type type, MemberInfo memberInfo)
         {
             return GetTypeUsage(type, CustomAttributeData.GetCustomAttributes(memberInfo), memberInfo.DeclaringType);
         }
@@ -1229,7 +1346,7 @@ namespace NReflect
         /// <param name="type">The type which will be represented by the resulting <see cref="NRTypeUsage"/>.</param>
         /// <param name="methodInfo">A <see cref="MethodInfo"/> which is used to determine if the type is dynamic.</param>
         /// <returns>The initialized <see cref="NRTypeUsage"/>.</returns>
-        private static NRTypeUsage GetTypeUsage(Type type, MethodInfo methodInfo)
+        private NRTypeUsage GetTypeUsage(Type type, MethodInfo methodInfo)
         {
             return GetTypeUsage(type, (ParameterInfo)methodInfo.ReturnTypeCustomAttributes, methodInfo.DeclaringType);
         }
@@ -1242,7 +1359,7 @@ namespace NReflect
         /// <param name="parameterInfo">A <see cref="ParameterInfo"/> which is used to determine if the type is dynamic.</param>
         /// <param name="currentType">The current type the type to get is used in.</param>
         /// <returns>The initialized <see cref="NRTypeUsage"/>.</returns>
-        private static NRTypeUsage GetTypeUsage(Type type, ParameterInfo parameterInfo, Type currentType)
+        private NRTypeUsage GetTypeUsage(Type type, ParameterInfo parameterInfo, Type currentType)
         {
             return GetTypeUsage(type, CustomAttributeData.GetCustomAttributes(parameterInfo), currentType);
         }
@@ -1255,13 +1372,22 @@ namespace NReflect
         /// <param name="customAttributeDatas">An <see cref="IEnumerable{T}"/> with attribute of th type which is used to determine if the type is dynamic.</param>
         /// <param name="declaringType">A <see cref="Type"/> which defines the type which is used.</param>
         /// <returns>The initialized <see cref="NRTypeUsage"/>.</returns>
-        private static NRTypeUsage GetTypeUsage(Type type, IEnumerable<CustomAttributeData> customAttributeDatas,
+        private NRTypeUsage GetTypeUsage(Type type, IEnumerable<CustomAttributeData> customAttributeDatas,
             Type declaringType)
         {
-            CustomAttributeData dynamicAttributeData = customAttributeDatas.FirstOrDefault(ad =>
-                ad.Constructor != null && ad.Constructor.DeclaringType != null &&
-                ad.Constructor.DeclaringType.FullName != null &&
-                ad.Constructor.DeclaringType.FullName.Equals(typeof(DynamicAttribute).FullName));
+            CustomAttributeData dynamicAttributeData = null;
+            try
+            {
+                dynamicAttributeData = customAttributeDatas.FirstOrDefault(ad =>
+                    ad.Constructor != null && ad.Constructor.DeclaringType != null &&
+                    ad.Constructor.DeclaringType.FullName != null &&
+                    ad.Constructor.DeclaringType.FullName.Equals(typeof(DynamicAttribute).FullName));
+            }
+            catch (Exception ex)
+            {
+                _errors.Add($"Failed to reflect dynamic attribute of type '{type.Name}'. {ex.Message}");
+            }
+
             List<bool> dynamics;
             if (dynamicAttributeData != null)
             {
@@ -1473,9 +1599,19 @@ namespace NReflect
         /// </summary>
         /// <param name="type">The event names are extrected from this type.</param>
         /// <returns>A list of event names.</returns>
-        private static List<string> GetEventNames(Type type)
+        private List<string> GetEventNames(Type type)
         {
-            EventInfo[] eventInfos = type.GetEvents(STANDARD_BINDING_FLAGS);
+            EventInfo[] eventInfos;
+            try
+            {
+                eventInfos = type.GetEvents(STANDARD_BINDING_FLAGS);
+            }
+            catch (Exception ex)
+            {
+                _errors.Add($"Failed to reflect events of type '{type.Name}'. {ex.Message}");
+                return new List<string>();
+            }
+
             List<string> eventNames = new List<string>(from eventInfo in eventInfos
                 where eventInfo.DeclaringType == type
                 select eventInfo.Name);
@@ -1492,7 +1628,17 @@ namespace NReflect
             List<NRAttribute> attributes = new List<NRAttribute>();
             foreach (CustomAttributeData attributeData in attributeDatas)
             {
-                Type attributeType = attributeData.Constructor.DeclaringType;
+                Type attributeType;
+                try
+                {
+                    attributeType = attributeData.Constructor.DeclaringType;
+                }
+                catch (Exception ex)
+                {
+                    _errors.Add($"Failed to reflect attribute '{attributeData}'. {ex.Message}");
+                    continue;
+                }
+
                 if (attributeType != null && (attributeType == typeof(DynamicAttribute) ||
                                               attributeType == typeof(ExtensionAttribute) ||
                                               attributeType == typeof(OutAttribute) ||
@@ -1604,7 +1750,7 @@ namespace NReflect
         /// <param name="type">The type the method is declared in.</param>
         /// <param name="method">The method to check.</param>
         /// <param name="nrOperation">The operation which has to be changed.</param>
-        private static void ChangeOperationModifierIfOverwritten(Type type, MethodBase method, NROperation nrOperation)
+        private void ChangeOperationModifierIfOverwritten(Type type, MethodBase method, NROperation nrOperation)
         {
             if (type != null && IsMethodOverwritten(type.BaseType, method))
             {
