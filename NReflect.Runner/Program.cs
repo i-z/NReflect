@@ -17,6 +17,8 @@
 // along with NReflect. If not, see <http://www.gnu.org/licenses/>.
 
 using System;
+using System.IO;
+using Newtonsoft.Json;
 using NReflect;
 using NReflect.Filter;
 using NReflect.NRRelationship;
@@ -53,6 +55,11 @@ namespace NReflect.Runner
         private static bool statistic;
 
         /// <summary>
+        ///  Is set to true to export the reflected assembly to a json file.
+        /// </summary>
+        private static bool _exportToJson;
+
+        /// <summary>
         /// The main method of the program.
         /// </summary>
         /// <param name="args">The arguments supplied at the console.</param>
@@ -79,6 +86,9 @@ namespace NReflect.Runner
                                 break;
                             case 's':
                                 statistic = true;
+                                break;
+                            case 'j':
+                                _exportToJson = true;
                                 break;
                             default:
                                 PrintUsage();
@@ -123,7 +133,7 @@ namespace NReflect.Runner
             {
                 Reflector reflector = new Reflector();
                 nrAssembly = reflector.Reflect(fileName, ref filter, out var errors);
-                
+
                 if (errors.Length > 0)
                 {
                     Console.WriteLine("Errors while reflecting:");
@@ -230,6 +240,14 @@ namespace NReflect.Runner
                     statisticFilter.ReflectedAttributes + statisticFilter.IgnoredAttributes);
                 Console.WriteLine("Modules     : {0}/{1}", statisticFilter.ReflectedModules,
                     statisticFilter.ReflectedModules + statisticFilter.IgnoredModules);
+            }
+
+            if (_exportToJson)
+            {
+                Console.WriteLine("Exporting to json...");
+                var jsonFileName = nrAssembly.Source + ".json";
+                File.WriteAllText(jsonFileName, JsonConvert.SerializeObject(nrAssembly));
+                Console.WriteLine("Exported to " + jsonFileName);
             }
 
             Console.WriteLine("Press any key to exit...");

@@ -2,7 +2,7 @@
   "profiles": {
     "NReflect.Runner": {
       "commandName": "Project",
-      "commandLineArgs": "-a C:\\github\\gg-game\\GGClient\\Library\\ScriptAssemblies\\GGClient.dll"
+      "commandLineArgs": ""
     }
   }
 }
